@@ -90,7 +90,13 @@ public class Startup
         var creds = new ClientSecretCredential(config.TenantId.ToString(), config.ClientId.ToString(), config.ClientSecret);
         var boolMultiTenant = config.IsAdminPortalMultiTenant?.ToLower().Trim() ?? "false";
 
-
+        var smtpOAuthConfig = new SmtpOAuthConfiguration()
+        {
+            ClientId = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.ClientId)}"],
+            ClientSecret = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.ClientSecret)}"],
+            TokenAuthority = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.TokenAuthority)}"],
+            TokenScopes = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.TokenScopes)}"],
+        };
 
         services
             .AddAuthentication(options =>
@@ -152,6 +158,16 @@ public class Startup
 
 
         InitializeRepositoryServices(services);
+
+        if (String.IsNullOrWhiteSpace(smtpOAuthConfig.TokenAuthority))
+        {
+            services.AddScoped<IEmailService, SMTPEmailService>();
+        }
+        else
+        {
+            services.AddSingleton<ISmtpOAuthTokenProvider>(new SmtpOAuthClientCredentialsTokenProvider(smtpOAuthConfig));
+            services.AddScoped<IEmailService, MailKitEmailService>();
+        }
 
         services.AddDistributedMemoryCache();
         services.AddSession(options =>
@@ -227,7 +243,6 @@ public class Startup
         services.AddScoped<IPlanEventsMappingRepository, PlanEventsMappingRepository>();
         services.AddScoped<IEventsRepository, EventsRepository>();
         services.AddScoped<KnownUserAttribute>();
-        services.AddScoped<IEmailService, SMTPEmailService>();
         services.AddScoped<ISAGitReleasesService, SAGitReleasesService>();
         services.AddScoped<ISchedulerFrequencyRepository, SchedulerFrequencyRepository>();
         services.AddScoped<IMeteredPlanSchedulerManagementRepository, MeteredPlanSchedulerManagementRepository>();
