@@ -81,6 +81,14 @@ public class Startup
         };
         var creds = new ClientSecretCredential(config.TenantId.ToString(), config.ClientId.ToString(), config.ClientSecret);
 
+        var smtpOAuthConfig = new SmtpOAuthConfiguration()
+        {
+            ClientId = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.ClientId)}"],
+            ClientSecret = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.ClientSecret)}"],
+            TokenAuthority = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.TokenAuthority)}"],
+            TokenScopes = this.Configuration[$"{nameof(SmtpOAuthConfiguration)}:{nameof(SmtpOAuthConfiguration.TokenScopes)}"],
+        };
+
         services
             .AddAuthentication(options =>
             {
@@ -126,6 +134,16 @@ public class Startup
             .AddDbContext<SaasKitContext>(options => options.UseSqlServer(this.Configuration.GetConnectionString("DefaultConnection")));
 
         InitializeRepositoryServices(services);
+
+        if (String.IsNullOrWhiteSpace(smtpOAuthConfig.TokenAuthority))
+        {
+            services.AddScoped<IEmailService, SMTPEmailService>();
+        }
+        else
+        {
+            services.AddSingleton<ISmtpOAuthTokenProvider>(new SmtpOAuthClientCredentialsTokenProvider(smtpOAuthConfig));
+            services.AddScoped<IEmailService, MailKitEmailService>();
+        }
 
         services.AddMvc(option => {
             option.EnableEndpointRouting = false;
@@ -178,7 +196,6 @@ public class Startup
         services.AddScoped<IOfferAttributesRepository, OfferAttributesRepository>();
         services.AddScoped<IPlanEventsMappingRepository, PlanEventsMappingRepository>();
         services.AddScoped<IEventsRepository, EventsRepository>();
-        services.AddScoped<IEmailService, SMTPEmailService>();
         services.AddScoped<SaaSClientLogger<HomeController>>();
         services.AddScoped<IWebNotificationService, WebNotificationService>();
     }
